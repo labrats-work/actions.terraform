@@ -1,0 +1,75 @@
+name: 'Terraform Apply'
+description: 'Apply a Terraform plan'
+inputs:
+  token:
+    description: 'Token for backend authentication'
+    required: true
+  plan_path:
+    description: 'Path to the Terraform plan file'
+    required: true
+    default: 'tfplan'
+  working_directory:
+    description: 'Directory to run terraform commands in'
+    required: false
+    default: '.'
+  backend_config_file:
+    description: 'Path to backend config file'
+    required: false
+    default: ''
+  auto_approve:
+    description: 'Whether to automatically approve the apply'
+    required: false
+    default: 'true'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Terraform Init
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        TF_HTTP_PASSWORD: ${{ inputs.token }}
+      run: |
+        INIT_ARGS="terraform init"
+        
+        # Add backend config file if specified
+        if [ -n "${{ inputs.backend_config_file }}" ]; then
+          INIT_ARGS="$INIT_ARGS -backend-config=${{ inputs.backend_config_file }}"
+        fi
+        
+        eval $INIT_ARGS
+    
+    - name: Check if plan exists
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: |
+        if [ -f "${{ inputs.plan_path }}" ]; then
+          echo "Plan file exists, proceeding with apply"
+        else
+          echo "Plan file does not exist at ${{ inputs.plan_path }}"
+          exit 1
+        fi
+          
+    - name: Terraform Apply
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        TF_HTTP_PASSWORD: ${{ inputs.token }}
+      run: |
+        APPLY_ARGS="terraform apply"
+        
+        # Add auto-approve if specified
+        if [ "${{ inputs.auto_approve }}" == "true" ]; then
+          APPLY_ARGS="$APPLY_ARGS -auto-approve"
+        fi
+        
+        # Add plan file
+        APPLY_ARGS="$APPLY_ARGS -input=false ${{ inputs.plan_path }}"
+        
+        # Run apply
+        eval $APPLY_ARGS
+        
+        # Output a summary of what was applied
+        echo "::group::Applied Changes Summary"
+        terraform show
+        echo "::endgroup::"

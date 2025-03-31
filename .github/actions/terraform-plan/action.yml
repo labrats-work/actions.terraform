@@ -1,0 +1,103 @@
+name: 'Terraform Plan'
+description: 'Run terraform plan and prepare outputs for apply or PR comments'
+inputs:
+  token:
+    description: 'Token for backend authentication and/or PR comments'
+    required: true
+  destroy:
+    description: 'Whether to run plan with -destroy option'
+    required: false
+    default: 'false'
+  working_directory:
+    description: 'Directory to run terraform commands in'
+    required: false
+    default: '.'
+  backend_config_file:
+    description: 'Path to backend config file'
+    required: false
+    default: ''
+  var_file:
+    description: 'Path to terraform.tfvars file'
+    required: false
+    default: ''
+
+outputs:
+  has_changes:
+    description: 'Whether the plan contains changes'
+    value: ${{ steps.terraform-plan.outputs.has_changes }}
+  plan_path:
+    description: 'Path to the saved plan file'
+    value: 'tfplan'
+  plan_json_path:
+    description: 'Path to the saved plan JSON file'
+    value: 'tfplan.json'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Terraform Init
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        TF_HTTP_PASSWORD: ${{ inputs.token }}
+      run: |
+        INIT_ARGS="terraform init"
+        
+        # Add backend config file if specified
+        if [ -n "${{ inputs.backend_config_file }}" ]; then
+          INIT_ARGS="$INIT_ARGS -backend-config=${{ inputs.backend_config_file }}"
+        fi
+        
+        eval $INIT_ARGS
+        
+    - name: Terraform Plan
+      id: terraform-plan
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        TF_HTTP_PASSWORD: ${{ inputs.token }}
+      run: |
+        # Turn off automatic error propagation for the terraform plan commands
+        set +e
+        
+        PLAN_ARGS="terraform plan -out=tfplan -input=false -detailed-exitcode"
+        
+        # Add var file if specified
+        if [ -n "${{ inputs.var_file }}" ]; then
+          PLAN_ARGS="$PLAN_ARGS -var-file=${{ inputs.var_file }}"
+        fi
+        
+        # Run plan with destroy flag if requested
+        if [ "${{ inputs.destroy }}" == "true" ]; then
+          PLAN_ARGS="$PLAN_ARGS -destroy"
+        fi
+        
+        # Run the plan
+        eval $PLAN_ARGS
+        PLAN_EXIT_CODE=$?
+        
+        # Turn automatic error propagation back on
+        set -e
+        
+        # Check if there are changes in the plan
+        # Exit code 0 = No changes
+        # Exit code 1 = Error
+        # Exit code 2 = Changes present
+        if [ $PLAN_EXIT_CODE -eq 0 ]; then
+          echo "No changes detected in Terraform plan"
+          echo "has_changes=false" >> $GITHUB_OUTPUT
+        elif [ $PLAN_EXIT_CODE -eq 2 ]; then
+          echo "Changes detected in Terraform plan"
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+        else
+          echo "Error during plan generation"
+          exit 1
+        fi
+        
+    - name: Convert plan to JSON for artifact
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      if: steps.terraform-plan.outputs.has_changes == 'true'
+      run: |
+        # Create JSON version of the plan
+        terraform show -json tfplan > tfplan.json

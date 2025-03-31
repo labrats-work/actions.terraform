@@ -1,0 +1,16 @@
+name: 'Wireguard VPN Connection'
+description: 'Establish a WireGuard VPN connection to the network'
+inputs:
+  config:
+    description: 'The WireGuard peer configuration'
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Setup WireGuard VPN
+      shell: bash
+      run: |
+        echo "${{ inputs.config }}" > ./peer0.conf
+        sed -i '/sysctl -q net.ipv4.conf.all.src_valid_mark/d' $(which wg-quick)
+        wg-quick up ./peer0.conf
+        echo "VPN connection established"
