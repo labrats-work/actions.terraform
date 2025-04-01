@@ -51,7 +51,7 @@ node -e '
     // Post the comment to GitHub API
     const [owner, repo] = process.env.REPOSITORY.split("/");
     const commentUrl = `https://api.github.com/repos/${owner}/${repo}/issues/${process.env.PR_NUMBER}/comments`;
-    const result = execSync(`curl -s -X POST ${commentUrl} -H "Authorization: token ${process.env.GITHUB_TOKEN}" -H "Content-Type: application/json" -d ''${body.replace(/''/g, "\\''")}''`);
+    const result = execSync(`curl -s -X POST ${commentUrl} -H "Authorization: token ${process.env.GITHUB_TOKEN}" -H "Content-Type: application/json" -d "${body.replace(/''/g, "\\''")}"`);
     
     console.log("Comment posted successfully!");
   } catch (error) {
