@@ -1,46 +1,3 @@
-name: 'Terraform Plan Comment'
-description: 'Post a comment on a PR with Terraform plan results'
-inputs:
-  token:
-    description: 'GitHub token for creating PR comments'
-    required: true
-  plan_path:
-    description: 'Path to the Terraform plan file'
-    required: true
-    default: 'tfplan'
-  plan_json_path:
-    description: 'Path to the Terraform plan JSON file'
-    required: true
-    default: 'tfplan.json'
-  repository:
-    description: 'GitHub repository (org/repo format)'
-    required: true
-  pr_number:
-    description: 'Pull request number'
-    required: true
-  working_directory:
-    description: 'Directory where plan files are located'
-    required: false
-    default: '.'
-  title:
-    description: 'Custom title for the comment'
-    required: false
-    default: 'Terraform Plan Summary'
-
-runs:
-  using: "composite"
-  steps:
-    - name: Add PR Comment with Plan
-      shell: bash
-      working-directory: ${{ inputs.working_directory }}
-      env:
-        GITHUB_TOKEN: ${{ inputs.token }}
-        PR_NUMBER: ${{ inputs.pr_number }}
-        REPOSITORY: ${{ inputs.repository }}
-        TITLE: ${{ inputs.title }}
-        PLAN_PATH: ${{ inputs.plan_path }}
-        PLAN_JSON_PATH: ${{ inputs.plan_json_path }}
-      run: |
         # Check if plan JSON exists
         if [ ! -f "$PLAN_JSON_PATH" ]; then
           echo "Plan JSON file not found: $PLAN_JSON_PATH"
@@ -93,13 +50,8 @@ runs:
             
             // Post the comment to GitHub API
             const [owner, repo] = process.env.REPOSITORY.split("/");
-            const commentUrl = "https://api.github.com/repos/${owner}/${repo}/issues/${process.env.PR_NUMBER}/comments";
-            
-            const result = execSync(`curl -s -X POST ${commentUrl} \
-              -H "Authorization: token ${process.env.GITHUB_TOKEN}" \
-              -H "Content-Type: application/json" \
-              -d '${body.replace(/'/g, "'\\''")}' \
-            `);
+            const commentUrl = "https://api.github.com/repos/${owner}/${repo}/issues/${process.env.PR_NUMBER}/comments";            
+            const result = execSync(`curl -s -X POST ${commentUrl} -H "Authorization: token ${process.env.GITHUB_TOKEN}" -H "Content-Type: application/json" -d '${body.replace(/'/g, "'\\''")}' `);
             
             console.log("Comment posted successfully!");
           } catch (error) {
